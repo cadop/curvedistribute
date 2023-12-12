@@ -29,15 +29,33 @@ def interpcurve(stage, curve_path, num_points):
 
     return interpolated_points
 
-def copy_to_points(stage, interpolated_points, ref_prim, path_to):
+def copy_to_points(stage, target_points, ref_prims, path_to, rand_order=False, use_orient=False, follow_curve=False):
+    '''
+    
+    path_to: str, prefix to the prim path. automatically appends Copy
+    TODO: rand_order =True, use randomness to determine which prim to place
+    TODO: use_orient=True, rotate object to fact direction 
+    TODO: follow_curve=True, set rotation axis to match curve (different than orientation when curve is 3d)
+    '''
 
-    for i in range(len(interpolated_points)):
-        primpath_to = f"{path_to}_{i}"
+    # Get index of prims that are not None and keep track 
+    prim_set = [p for p in ref_prims if p != None]
+    print(prim_set) 
+    num_prims = len(prim_set)
+    cur_idx = 0
+
+    for i in range(len(target_points)):
+        ref_prim = prim_set[cur_idx]
+        primpath_to = f"{ref_prim}Copy_{i}"
+        
         omni.usd.duplicate_prim(stage, ref_prim, primpath_to)
         new_prim = stage.GetPrimAtPath(primpath_to)
-        target_pos = Gf.Vec3d(tuple(interpolated_points[i]))
+        target_pos = Gf.Vec3d(tuple(target_points[i]))
         new_prim.GetAttribute('xformOp:translate').Set(target_pos)
 
+        # Go to the next prim, or reset to 0
+        if cur_idx < num_prims-1: cur_idx +=1
+        else: cur_idx = 0
 
 
 
@@ -96,15 +114,50 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                     
                     ui.Spacer()
 
+
                     def duplicate():
                         stage = omni.usd.get_context().get_stage()
-                        curve_path = self._source_curve_model.as_string
-                        ref_prim = self._source_prim_model.as_string
-                        path_to = f'{ref_prim}Copy'
-                        num_points = self._count
 
-                        interpolated_points = interpcurve(stage, curve_path, num_points)
-                        copy_to_points(stage, interpolated_points, ref_prim, path_to)
+                        curve_path = '/World/BasisCurves'
+
+                        ## All of these should work (assuming the named prim is there)
+                        ref_prims = ['/World/Cube']
+                        # ref_prims = ['/World/Cube', None]
+                        # ref_prims = ['/World/Cube', '/World/Cone']
+
+                        path_to = f'/Copy'
+                        num_points = self._count
+                        # Default to 3x the number of points to distribute?
+                        num_samples = self._count*3
+
+                        # TODO: make this setting for the resolution to sample the curve defined by user
+                        interpolated_points = interpcurve(stage, curve_path, num_samples)
+                        indices = np.linspace(0, len(interpolated_points) - 1, num_points, dtype=int)
+                        target_points = interpolated_points[indices]
+                        copy_to_points(stage, target_points, ref_prims, path_to)
+
+                    def duplicate():
+
+                        stage = omni.usd.get_context().get_stage()
+                        curve_path = self._source_curve_model.as_string
+                        ref_prims = [self._source_prim_model.as_string]
+
+                        ## All of these should work (assuming the named prim is there)
+                        # ref_prims = ['/World/Cube']
+                        # ref_prims = ['/World/Cube', None]
+                        # ref_prims = ['/World/Cube', '/World/Cone']
+
+                        path_to = f'/Copy'
+
+                        num_points = self._count
+                        # Default to 3x the number of points to distribute? Actually might be handled already by interp
+                        num_samples = self._count
+
+                        # TODO: make this setting for the resolution to sample the curve defined by user
+                        interpolated_points = interpcurve(stage, curve_path, num_samples)
+                        indices = np.linspace(0, len(interpolated_points) - 1, num_points, dtype=int)
+                        target_points = interpolated_points[indices]
+                        copy_to_points(stage, target_points, ref_prims, path_to)
 
                     ui.Label("Set Number of Points")
                     with ui.VStack():
