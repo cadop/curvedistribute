@@ -150,8 +150,8 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                         path_to = f'/Copy'
 
                         num_points = self._count
-                        # Default to 3x the number of points to distribute?
-                        num_samples = self._count*3
+                        # Default to 3x the number of points to distribute? Actually might be handled already by interp
+                        num_samples = self._count
 
                         # TODO: make this setting for the resolution to sample the curve defined by user
                         interpolated_points = interpcurve(stage, curve_path, num_samples)
