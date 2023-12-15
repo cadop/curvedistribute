@@ -60,25 +60,6 @@ class CurveManager():
             if cur_idx < num_prims-1: cur_idx +=1
             else: cur_idx = 0
 
-
-    # stage = omni.usd.get_context().get_stage()
-    # curve_path = '/World/BasisCurves'
-    # ref_prim = '/World/Cube'
-    # path_to = f'{ref_prim}Copy'
-    # num_points = 15
-
-
-    # interpolated_points = interpcurve(stage, curve_path, num_points)
-    # copy_to_points(stage, interpolated_points, ref_prim, path_to)
-
-    # # Add an internal references 
-    # for i in range(num_points):
-    #     intern_target_path = Sdf.Path(f"/World/intern_target_{i}")
-    #     target_prim = UsdGeom.Xform.Define(stage, intern_target_path).GetPrim()
-    #     references  = ref_prim.GetReferences()
-    #     references.AddInternalReference(intern_target_path)
-
-
 class GeomCreator():
     def __init__(self):
         pass
