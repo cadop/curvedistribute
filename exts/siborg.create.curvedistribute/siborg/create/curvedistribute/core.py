@@ -2,7 +2,47 @@ from pxr import Usd, UsdGeom, Gf, Sdf
 import numpy as np
 from scipy.interpolate import BSpline
 import omni.usd
+from scipy.interpolate import splprep, splev
 
+def smooth_path(input_points, num_points=500):
+    '''
+    Interpolate the path and smooth the verts to be shown
+    '''
+    def interpolate_curve(points, num_points=100):
+        """Interpolate the curve to produce a denser set of points."""
+        tck, u = splprep([[p[0] for p in points], [p[1] for p in points], [p[2] for p in points]], s=0)
+        u_new = np.linspace(0, 1, num_points)
+        x_new, y_new, z_new = splev(u_new, tck)
+        return list(zip(x_new, y_new, z_new))
+
+    # Re-define the moving_average function as provided by you
+    def moving_average(points, window_size=3):
+        """Smoothen the curve using a moving average."""
+        if window_size < 3:
+            return points  # Too small window, just return original points
+
+        extended_points = points[:window_size-1] + points + points[-(window_size-1):]
+        smoothed_points = []
+
+        for i in range(len(points)):
+            window = extended_points[i:i+window_size]
+            avg_x = sum(pt[0] for pt in window) / window_size
+            avg_y = sum(pt[1] for pt in window) / window_size
+            avg_z = sum(pt[2] for pt in window) / window_size
+            smoothed_points.append((avg_x, avg_y, avg_z))
+
+        return smoothed_points
+
+    # Smooth the original input points
+    smoothed_points = moving_average(input_points, window_size=4)
+
+    # Interpolate the smoothed curve to produce a denser set of points
+    interpolated_points = interpolate_curve(smoothed_points, num_points=num_points)
+
+    # Smooth the denser set of points
+    smoothed_interpolated_points = moving_average(interpolated_points, window_size=6)
+
+    return smoothed_interpolated_points
 
 class CurveManager():
     def __init__(self):
@@ -27,14 +67,15 @@ class CurveManager():
         # Interpolate points
         tnew = np.linspace(0, 1, num_points)
         interpolated_points = spl(tnew)
+        
+        interpolated_points = smooth_path(interpolated_points, num_points)
 
         return interpolated_points
 
     @classmethod
     def copy_to_points(cls, stage, target_points, ref_prims, path_to, 
                         rand_order=False, use_orient=False, follow_curve=False):
-        '''
-        
+        '''        
         path_to: str, prefix to the prim path. automatically appends Copy
         TODO: rand_order =True, use randomness to determine which prim to place
         TODO: use_orient=True, rotate object to fact direction 
