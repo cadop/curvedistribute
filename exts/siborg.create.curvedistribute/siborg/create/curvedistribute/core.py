@@ -18,6 +18,8 @@ class CurveManager():
         points = curveprim.GetAttribute('points').Get()
         control_points = np.array(points)
         
+        print(control_points)
+        
         # Create a BSpline object
         k = 3 # degree of the spline
         t = np.linspace(0, 1, len(control_points) - k + 1, endpoint=True)
@@ -36,24 +38,27 @@ class CurveManager():
         distances = np.sqrt(np.sum(np.diff(fine_points, axis=0)**2, axis=1))
         total_length = np.sum(distances)
 
-        # Find equally spaced lengths along the curve
-        target_lengths = np.linspace(0, total_length, num_points)
-        spaced_points = []
+        # Calculate the length of each segment
+        segment_length = total_length / (num_points - 1)
+
+        # Create an array of target lengths
+        target_lengths = np.array([i * segment_length for i in range(num_points)])
+
+        # Find the points at the target lengths
+        spaced_points = [control_points[0]]  # Start with the first control point
         current_length = 0
-        j = 0
+        j = 1  # Start from the second target length
 
         for i in range(1, len(fine_points)):
             segment_length = distances[i-1]
-            while current_length + segment_length >= target_lengths[j]:
+            while j < num_points - 1 and current_length + segment_length >= target_lengths[j]:
                 ratio = (target_lengths[j] - current_length) / segment_length
                 point = fine_points[i-1] + ratio * (fine_points[i] - fine_points[i-1])
                 spaced_points.append(point)
                 j += 1
-                if j == num_points:
-                    break
             current_length += segment_length
-            if j == num_points:
-                break
+
+        spaced_points.append(control_points[-1])  # End with the last control point
 
         return np.array(spaced_points)
 
