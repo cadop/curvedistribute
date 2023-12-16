@@ -1,48 +1,9 @@
 from pxr import Usd, UsdGeom, Gf, Sdf
 import numpy as np
-from scipy.interpolate import BSpline
+from scipy.interpolate import BSpline, CubicSpline
 import omni.usd
 from scipy.interpolate import splprep, splev
 
-def smooth_path(input_points, num_points=500):
-    '''
-    Interpolate the path and smooth the verts to be shown
-    '''
-    def interpolate_curve(points, num_points=100):
-        """Interpolate the curve to produce a denser set of points."""
-        tck, u = splprep([[p[0] for p in points], [p[1] for p in points], [p[2] for p in points]], s=0)
-        u_new = np.linspace(0, 1, num_points)
-        x_new, y_new, z_new = splev(u_new, tck)
-        return list(zip(x_new, y_new, z_new))
-
-    # Re-define the moving_average function as provided by you
-    def moving_average(points, window_size=3):
-        """Smoothen the curve using a moving average."""
-        if window_size < 3:
-            return points  # Too small window, just return original points
-
-        extended_points = points[:window_size-1] + points + points[-(window_size-1):]
-        smoothed_points = []
-
-        for i in range(len(points)):
-            window = extended_points[i:i+window_size]
-            avg_x = sum(pt[0] for pt in window) / window_size
-            avg_y = sum(pt[1] for pt in window) / window_size
-            avg_z = sum(pt[2] for pt in window) / window_size
-            smoothed_points.append((avg_x, avg_y, avg_z))
-
-        return smoothed_points
-
-    # Smooth the original input points
-    smoothed_points = moving_average(input_points, window_size=4)
-
-    # Interpolate the smoothed curve to produce a denser set of points
-    interpolated_points = interpolate_curve(smoothed_points, num_points=num_points)
-
-    # Smooth the denser set of points
-    smoothed_interpolated_points = moving_average(interpolated_points, window_size=6)
-
-    return smoothed_interpolated_points
 
 class CurveManager():
     def __init__(self):
@@ -55,22 +16,46 @@ class CurveManager():
         # Get the curve prim and points that define it
         curveprim = stage.GetPrimAtPath(curve_path)
         points = curveprim.GetAttribute('points').Get()
-        points = np.array(points)
-
+        control_points = np.array(points)
+        
         # Create a BSpline object
         k = 3 # degree of the spline
-        t = np.linspace(0, 1, len(points) - k + 1, endpoint=True)
+        t = np.linspace(0, 1, len(control_points) - k + 1, endpoint=True)
         t = np.append(np.zeros(k), t)
         t = np.append(t, np.ones(k))
-        spl = BSpline(t, points, k)
+        spl = BSpline(t, control_points, k)
 
-        # Interpolate points
-        tnew = np.linspace(0, 1, num_points)
-        interpolated_points = spl(tnew)
-        
-        interpolated_points = smooth_path(interpolated_points, num_points)
+        #### If not using evenly distributed points, can just return this
+        # tnew = np.linspace(0, 1, num_points)
+        # interpolated_points = spl(tnew)
+        # return interpolated_points
 
-        return interpolated_points
+        # Calculate the total arc length of the spline
+        fine_t = np.linspace(0, 1, 1000)
+        fine_points = spl(fine_t)
+        distances = np.sqrt(np.sum(np.diff(fine_points, axis=0)**2, axis=1))
+        total_length = np.sum(distances)
+
+        # Find equally spaced lengths along the curve
+        target_lengths = np.linspace(0, total_length, num_points)
+        spaced_points = []
+        current_length = 0
+        j = 0
+
+        for i in range(1, len(fine_points)):
+            segment_length = distances[i-1]
+            while current_length + segment_length >= target_lengths[j]:
+                ratio = (target_lengths[j] - current_length) / segment_length
+                point = fine_points[i-1] + ratio * (fine_points[i] - fine_points[i-1])
+                spaced_points.append(point)
+                j += 1
+                if j == num_points:
+                    break
+            current_length += segment_length
+            if j == num_points:
+                break
+
+        return np.array(spaced_points)
 
     @classmethod
     def copy_to_points(cls, stage, target_points, ref_prims, path_to, 
