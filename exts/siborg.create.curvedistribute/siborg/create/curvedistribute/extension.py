@@ -5,7 +5,7 @@ from pxr import Usd, UsdGeom, Gf, Sdf
 import numpy as np
 from scipy.interpolate import BSpline
 import omni.usd
-from .utils import get_selection
+from . import utils
 
 from .core import CurveManager, GeomCreator
 
@@ -24,19 +24,21 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
             #Models
             self._source_prim_model = ui.SimpleStringModel()
             self._source_curve_model = ui.SimpleStringModel()
+            self._use_instance_model = ui.SimpleBoolModel()
 
             #Defaults
             self._source_prim_model.as_string = ""
             self._source_curve_model.as_string = ""
+            self._use_instance_model = False
 
             #Grab Prim in Stage on Selection
             def _get_prim():
-                self._source_prim_model.as_string = ", ".join(get_selection())
+                self._source_prim_model.as_string = ", ".join(utils.get_selection())
 
             def _get_curve():
-                self._source_curve_model.as_string = ", ".join(get_selection())
+                self._source_curve_model.as_string = ", ".join(utils.get_selection())
 
-            self._window = ui.Window("Distribute along curve", width=210, height=300)
+            self._window = ui.Window("Distribute along curve", width=210, height=320)
             with self._window.frame:
                 with ui.VStack(height=10, width=200, spacing=10):
                     select_button_style ={"Button":{"background_color": cl.cyan,
@@ -79,8 +81,18 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                         x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_count', m.get_value_as_int()))
                         ui.Button("Distribute", clicked_fn=lambda: GeomCreator.duplicate(self._count,  
                                                                              self._source_curve_model, 
-                                                                             self._source_prim_model), 
+                                                                             self._source_prim_model, 
+                                                                             self._use_instance_model), 
                                   style=distribute_button_style) 
+
+                    with ui.HStack():
+                        # ui.StringField(height=2, model=self._source_prim_model)
+                        # ui.Button("S", width=20, height=20, style=select_button_style, clicked_fn=_get_prim)
+                        ui.Label(" Use instances", width=65)
+                                 
+                        instancer = ui.CheckBox(width=30)
+                        instancer.model.add_value_changed_fn(lambda m : setattr(self, '_use_instance_model', m.get_value_as_bool()))
+                        instancer.model.set_value(False)
 
         def on_shutdown(self):
             print("[siborg.create.curvedistribute] siborg create curvedistribute shutdown")
