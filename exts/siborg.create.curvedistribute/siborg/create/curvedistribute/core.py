@@ -49,8 +49,8 @@ class CurveManager():
         
         # Get index of prims that are not None and keep track 
         prim_set = [p for p in ref_prims if p != None]
-        print(prim_set) 
-        print(f'isntance? : {make_instance}')
+        # print(prim_set) 
+        # print(f'isntance? : {make_instance}')
         
         new_prims = []
         
@@ -58,10 +58,10 @@ class CurveManager():
 
             # Mark the original prims as instanceable if it has no children (like for a mesh)
             for prim_path in prim_set:
-                print(f'{prim_path=}')
+                # print(f'{prim_path=}')
 
                 original_prim = stage.GetPrimAtPath(prim_path)
-                print(f'{original_prim=}')
+                # print(f'{original_prim=}')
                 # If this prim is not wrapped in an xform
                 if not original_prim.GetChildren():
                     ref_prim = original_prim
@@ -75,7 +75,7 @@ class CurveManager():
                     # Make this new xform instanceable
                     new_prim_xform_wrapper.SetInstanceable(True)
                     
-                    print(f'xform wrap path {new_prim_xform_wrapper}')
+                    # print(f'xform wrap path {new_prim_xform_wrapper}')
                     new_ref_prim = f"{new_prim_xform_wrapper.GetPath()}/{ref_prim_suffix}"
                     
                     # Duplicate the prim and put it under a new xform
@@ -90,7 +90,7 @@ class CurveManager():
                     ref_prim= str(new_prim_xform_wrapper.GetPath())
 
                     original_prim = stage.GetPrimAtPath(ref_prim)
-                    print("finished the xform wrapper")
+                    # print("finished the xform wrapper")
                 
                 original_prim.SetInstanceable(True)
                 
