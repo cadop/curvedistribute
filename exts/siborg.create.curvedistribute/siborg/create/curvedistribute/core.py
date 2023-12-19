@@ -1,7 +1,8 @@
 from pxr import Usd, UsdGeom, Gf, Sdf
 import numpy as np
-from scipy.interpolate import BSpline
+from scipy.interpolate import BSpline, CubicSpline
 import omni.usd
+from scipy.interpolate import splprep, splev
 
 
 class CurveManager():
@@ -15,26 +16,56 @@ class CurveManager():
         # Get the curve prim and points that define it
         curveprim = stage.GetPrimAtPath(curve_path)
         points = curveprim.GetAttribute('points').Get()
-        points = np.array(points)
-
+        control_points = np.array(points)
+        
+        print(control_points)
+        
         # Create a BSpline object
         k = 3 # degree of the spline
-        t = np.linspace(0, 1, len(points) - k + 1, endpoint=True)
+        t = np.linspace(0, 1, len(control_points) - k + 1, endpoint=True)
         t = np.append(np.zeros(k), t)
         t = np.append(t, np.ones(k))
-        spl = BSpline(t, points, k)
+        spl = BSpline(t, control_points, k)
 
-        # Interpolate points
-        tnew = np.linspace(0, 1, num_points)
-        interpolated_points = spl(tnew)
+        #### If not using evenly distributed points, can just return this
+        # tnew = np.linspace(0, 1, num_points)
+        # interpolated_points = spl(tnew)
+        # return interpolated_points
 
-        return interpolated_points
+        # Calculate the total arc length of the spline
+        fine_t = np.linspace(0, 1, 1000)
+        fine_points = spl(fine_t)
+        distances = np.sqrt(np.sum(np.diff(fine_points, axis=0)**2, axis=1))
+        total_length = np.sum(distances)
+
+        # Calculate the length of each segment
+        segment_length = total_length / (num_points - 1)
+
+        # Create an array of target lengths
+        target_lengths = np.array([i * segment_length for i in range(num_points)])
+
+        # Find the points at the target lengths
+        spaced_points = [control_points[0]]  # Start with the first control point
+        current_length = 0
+        j = 1  # Start from the second target length
+
+        for i in range(1, len(fine_points)):
+            segment_length = distances[i-1]
+            while j < num_points - 1 and current_length + segment_length >= target_lengths[j]:
+                ratio = (target_lengths[j] - current_length) / segment_length
+                point = fine_points[i-1] + ratio * (fine_points[i] - fine_points[i-1])
+                spaced_points.append(point)
+                j += 1
+            current_length += segment_length
+
+        spaced_points.append(control_points[-1])  # End with the last control point
+
+        return np.array(spaced_points)
 
     @classmethod
     def copy_to_points(cls, stage, target_points, ref_prims, path_to, make_instance=False,
                         rand_order=False, use_orient=False, follow_curve=False):
-        '''
-        
+        '''        
         path_to: str, prefix to the prim path. automatically appends Copy
         TODO: rand_order =True, use randomness to determine which prim to place
         TODO: use_orient=True, rotate object to face direction 
