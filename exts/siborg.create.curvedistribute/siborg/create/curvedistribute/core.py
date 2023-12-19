@@ -18,7 +18,7 @@ class CurveManager():
         points = curveprim.GetAttribute('points').Get()
         control_points = np.array(points)
         
-        print(control_points)
+        # print(control_points)
         
         # Create a BSpline object
         k = 3 # degree of the spline
@@ -61,6 +61,7 @@ class CurveManager():
         spaced_points.append(control_points[-1])  # End with the last control point
 
         return np.array(spaced_points)
+       
 
     @classmethod
     def copy_to_points(cls, stage, target_points, ref_prims, path_to, make_instance=False,
