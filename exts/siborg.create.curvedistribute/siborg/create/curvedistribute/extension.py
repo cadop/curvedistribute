@@ -38,9 +38,9 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
             def _get_curve():
                 self._source_curve_model.as_string = ", ".join(utils.get_selection())
 
-            self._window = ui.Window("Distribute along curve", width=210, height=320)
+            self._window = ui.Window("Distribute Along Curve", width=240, height=320)
             with self._window.frame:
-                with ui.VStack(height=10, width=200, spacing=10):
+                with ui.VStack(height=10, width=220, spacing=10):
                     select_button_style ={"Button":{"background_color": cl.cyan,
                                                 "border_color": cl.white,
                                                 "border_width": 2.0,
@@ -66,8 +66,22 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                     ui.Spacer()
 
 
-                    ui.Label("Set Number of Points")
+
+                    with ui.HStack():
+                        ui.Label("Copies")
+                        x = ui.IntField(height=5)
+                        x.model.set_value(0) 
+                        x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_count', m.get_value_as_int()))
+                        
+                        
+                        ui.Label(" Subsamples")
+                        x = ui.IntField(height=5) 
+                        x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_sampling_resolution', m.get_value_as_int()))
+                        x.model.set_value(1000) 
+
                     with ui.VStack():
+
+                        
                         distribute_button_style = {"Button":{"background_color": cl.cyan,
                             "border_color": cl.white,
                             "border_width": 2.0,
@@ -77,18 +91,18 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                             "margin_width":5},
                             "Button.Label":{"color": cl.black},
                             "Button:hovered":{"background_color": cl("#E5F1FB")}}
-                        x = ui.IntField(height=5) 
-                        x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_count', m.get_value_as_int()))
-                        ui.Button("Distribute", clicked_fn=lambda: GeomCreator.duplicate(self._count,  
-                                                                             self._source_curve_model, 
-                                                                             self._source_prim_model, 
-                                                                             self._use_instance_model), 
-                                  style=distribute_button_style) 
+                        
+                        ui.Button("Distribute", clicked_fn=lambda: GeomCreator.duplicate(self._count, 
+                                                                                         self._sampling_resolution, 
+                                                                                         self._source_curve_model, 
+                                                                                         self._source_prim_model, 
+                                                                                         self._use_instance_model), 
+                                        style=distribute_button_style) 
 
                     with ui.HStack():
                         # ui.StringField(height=2, model=self._source_prim_model)
                         # ui.Button("S", width=20, height=20, style=select_button_style, clicked_fn=_get_prim)
-                        ui.Label(" Use instances", width=65)
+                        ui.Label(" Use instances ", width=65)
                                  
                         instancer = ui.CheckBox(width=30)
                         instancer.model.add_value_changed_fn(lambda m : setattr(self, '_use_instance_model', m.get_value_as_bool()))

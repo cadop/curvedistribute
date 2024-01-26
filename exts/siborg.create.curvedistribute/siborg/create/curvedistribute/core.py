@@ -10,7 +10,7 @@ class CurveManager():
         pass
 
     @classmethod
-    def interpcurve(cls, stage, curve_path, num_points):
+    def interpcurve(cls, stage, curve_path, num_points, sampling_resolution):
         '''Interpolates a bezier curve based on the input points on the usd'''
 
         # Get the curve prim and points that define it
@@ -33,7 +33,9 @@ class CurveManager():
         # return interpolated_points
 
         # Calculate the total arc length of the spline
-        fine_t = np.linspace(0, 1, 1000)
+        if sampling_resolution == 0:
+            sampling_resolution = num_points
+        fine_t = np.linspace(0, 1, sampling_resolution)
         fine_points = spl(fine_t)
         distances = np.sqrt(np.sum(np.diff(fine_points, axis=0)**2, axis=1))
         total_length = np.sum(distances)
@@ -166,7 +168,7 @@ class GeomCreator():
         pass
     
     @classmethod
-    def duplicate(cls, _count, _source_curve_model, _source_prim_model, _use_instance):
+    def duplicate(cls, _count, _sampling_resolution, _source_curve_model, _source_prim_model, _use_instance):
         '''
         ## All of these should work (assuming the named prim is there)
         # ref_prims = ['/World/Cube']
@@ -183,12 +185,13 @@ class GeomCreator():
 
         path_to = f'/Copy'
 
+        sampling_resolution = _sampling_resolution
         num_points = _count
         # Default to 3x the number of points to distribute? Actually might be handled already by interp
         num_samples = _count
 
         # TODO: make this setting for the resolution to sample the curve defined by user
-        interpolated_points = CurveManager.interpcurve(stage, curve_path, num_samples)
+        interpolated_points = CurveManager.interpcurve(stage, curve_path, num_samples, sampling_resolution)
         indices = np.linspace(0, len(interpolated_points) - 1, num_points, dtype=int)
         target_points = interpolated_points[indices]
         CurveManager.copy_to_points(stage, target_points, ref_prims, path_to, make_instance=_use_instance)
