@@ -46,9 +46,9 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                 self._source_curve_model.as_string = ", ".join(utils.get_selection())
 
 
-            self._window = ui.Window("Distribute Along Curve", width=260, height=360)
+            self._window = ui.Window("Distribute Along Curve", width=280, height=390)
             with self._window.frame:
-                with ui.VStack(height=10, width=240, spacing=10):
+                with ui.VStack(height=10, width=260, spacing=10):
                     select_button_style ={"Button":{"background_color": cl.cyan,
                                                 "border_color": cl.white,
                                                 "border_width": 2.0,
@@ -86,28 +86,6 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                         x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_sampling_resolution', m.get_value_as_int()))
                         x.model.set_value(1000) 
 
-                    with ui.VStack():
-
-                        
-                        distribute_button_style = {"Button":{"background_color": cl.cyan,
-                            "border_color": cl.white,
-                            "border_width": 2.0,
-                            "padding": 10,
-                            "margin_height": 10,
-                            "border_radius": 10,
-                            "margin_width":5},
-                            "Button.Label":{"color": cl.black},
-                            "Button:hovered":{"background_color": cl("#E5F1FB")}}
-                        
-                        ui.Button("Distribute", clicked_fn=lambda: GeomCreator.duplicate(self._count, 
-                                                                                         self._sampling_resolution, 
-                                                                                         self._source_curve_model, 
-                                                                                         self._source_prim_model, 
-                                                                                         self._use_instance_model,
-                                                                                         self._use_orient_model,
-                                                                                         self._forward_axis,
-                                                                                         self._curve_type), 
-                                        style=distribute_button_style) 
 
                     with ui.HStack():
                         # ui.StringField(height=2, model=self._source_prim_model)
@@ -145,7 +123,29 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                                                                         utils.index_to_axis(m.get_item_value_model().get_value_as_int())
                                                                         )
                                                    )
-        
+                    with ui.VStack():
+
+                        
+                        distribute_button_style = {"Button":{"background_color": cl.cyan,
+                            "border_color": cl.white,
+                            "border_width": 2.0,
+                            "padding": 10,
+                            "margin_height": 10,
+                            "border_radius": 10,
+                            "margin_width":5},
+                            "Button.Label":{"color": cl.black},
+                            "Button:hovered":{"background_color": cl("#E5F1FB")}}
+                        
+                        ui.Button("Distribute", clicked_fn=lambda: GeomCreator.duplicate(self._count, 
+                                                                                         self._sampling_resolution, 
+                                                                                         self._source_curve_model, 
+                                                                                         self._source_prim_model, 
+                                                                                         self._use_instance_model,
+                                                                                         self._use_orient_model,
+                                                                                         self._forward_axis,
+                                                                                         self._curve_type), 
+                                        style=distribute_button_style) 
+
         def on_shutdown(self):
             print("[siborg.create.curvedistribute] siborg create curvedistribute shutdown")
 
