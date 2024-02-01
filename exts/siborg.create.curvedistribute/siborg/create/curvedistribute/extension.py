@@ -5,59 +5,12 @@ from pxr import Usd, UsdGeom, Gf, Sdf
 import numpy as np
 from scipy.interpolate import BSpline
 import omni.usd
-from .utils import get_selection
+from . import utils
 
+from .core import CurveManager, GeomCreator
 
-def interpcurve(stage, curve_path, num_points):
-
-    # Get the curve prim and points that define it
-    curveprim = stage.GetPrimAtPath(curve_path)
-    points = curveprim.GetAttribute('points').Get()
-    points = np.array(points)
-    # print(f'Points: {points}')
-
-    # Create a BSpline object
-    k = 3 # degree of the spline
-    t = np.linspace(0, 1, len(points) - k + 1, endpoint=True)
-    t = np.append(np.zeros(k), t)
-    t = np.append(t, np.ones(k))
-    spl = BSpline(t, points, k)
-
-    # Interpolate points
-    tnew = np.linspace(0, 1, num_points)
-    interpolated_points = spl(tnew)
-
-    return interpolated_points
-
-def copy_to_points(stage, target_points, ref_prims, path_to, rand_order=False, use_orient=False, follow_curve=False):
-    '''
-    
-    path_to: str, prefix to the prim path. automatically appends Copy
-    TODO: rand_order =True, use randomness to determine which prim to place
-    TODO: use_orient=True, rotate object to fact direction 
-    TODO: follow_curve=True, set rotation axis to match curve (different than orientation when curve is 3d)
-    '''
-
-    # Get index of prims that are not None and keep track 
-    prim_set = [p for p in ref_prims if p != None]
-    print(prim_set) 
-    num_prims = len(prim_set)
-    cur_idx = 0
-
-    for i in range(len(target_points)):
-        ref_prim = prim_set[cur_idx]
-        primpath_to = f"{ref_prim}Copy_{i}"
-        
-        omni.usd.duplicate_prim(stage, ref_prim, primpath_to)
-        new_prim = stage.GetPrimAtPath(primpath_to)
-        target_pos = Gf.Vec3d(tuple(target_points[i]))
-        new_prim.GetAttribute('xformOp:translate').Set(target_pos)
-
-        # Go to the next prim, or reset to 0
-        if cur_idx < num_prims-1: cur_idx +=1
-        else: cur_idx = 0
-
-
+AXIS = ["+X", "+Y", "+Z", "-X", "-Y", "-Z"]  # taken from motion path
+CURVES = ["Bezier", "BSpline"]
 
 # Any class derived from `omni.ext.IExt` in top level module (defined in `python.modules` of `extension.toml`) will be
 # instantiated when extension gets enabled and `on_startup(ext_id)` will be called. Later when extension gets disabled
@@ -71,25 +24,31 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
         def on_startup(self, ext_id):
             print("[siborg.create.curvedistribute] siborg create curvedistribute startup")
 
-
             #Models
             self._source_prim_model = ui.SimpleStringModel()
             self._source_curve_model = ui.SimpleStringModel()
+            self._use_instance_model = ui.SimpleBoolModel()
 
             #Defaults
+            self._count = 0
             self._source_prim_model.as_string = ""
             self._source_curve_model.as_string = ""
-
+            self._sampling_resolution = 0
+            self._use_instance_model = False
+            self._use_orient_model = False
+            self._forward_axis = [1,0,0]
+            self._curve_type = utils.CURVE.Bezier
             #Grab Prim in Stage on Selection
             def _get_prim():
-                self._source_prim_model.as_string = ", ".join(get_selection())
+                self._source_prim_model.as_string = ", ".join(utils.get_selection())
 
             def _get_curve():
-                self._source_curve_model.as_string = ", ".join(get_selection())
+                self._source_curve_model.as_string = ", ".join(utils.get_selection())
 
-            self._window = ui.Window("Distribute along curve", width=210, height=300)
+
+            self._window = ui.Window("Distribute Along Curve", width=280, height=390)
             with self._window.frame:
-                with ui.VStack(height=10, width=200, spacing=10):
+                with ui.VStack(height=10, width=260, spacing=10):
                     select_button_style ={"Button":{"background_color": cl.cyan,
                                                 "border_color": cl.white,
                                                 "border_width": 2.0,
@@ -100,14 +59,14 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                                                 "Button.Label":{"color": cl.black},
                                                 "Button:hovered":{"background_color": cl("#E5F1FB")}}
                     ui.Spacer()
-                    ui.Label("Select Curve From Stage")
+                    ui.Label("Select Curve From Stage", tooltip="Select a BasisCurves type")
                     with ui.HStack():
                         ui.StringField(height=2, model=self._source_curve_model)
                         ui.Button("S", width=20, height=20, style=select_button_style, clicked_fn=_get_curve)
 
                     ui.Spacer()
 
-                    label = ui.Label("Get Prim From Stage", width=65)
+                    ui.Label("Get Prims From Stage", width=65, tooltip="Select multiple prims to distribute in sequence")
                     with ui.HStack():
                         ui.StringField(height=2, model=self._source_prim_model)
                         ui.Button("S", width=20, height=20, style=select_button_style, clicked_fn=_get_prim)
@@ -115,52 +74,58 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                     ui.Spacer()
 
 
-                    def duplicate():
-                        stage = omni.usd.get_context().get_stage()
+                    with ui.HStack():
+                        ui.Label("Copies", tooltip="Number of copies to distribute. Endpoints are included in the count.")
+                        x = ui.IntField(height=5)
+                        x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_count', m.get_value_as_int()))
+                        x.model.set_value(3) 
+                        
+                        
+                        ui.Label("     Subsamples", tooltip="A sampling parameter, don't touch if you don't understand")
+                        x = ui.IntField(height=5) 
+                        x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_sampling_resolution', m.get_value_as_int()))
+                        x.model.set_value(1000) 
 
-                        curve_path = '/World/BasisCurves'
 
-                        ## All of these should work (assuming the named prim is there)
-                        ref_prims = ['/World/Cube']
-                        # ref_prims = ['/World/Cube', None]
-                        # ref_prims = ['/World/Cube', '/World/Cone']
+                    with ui.HStack():
+                        # ui.StringField(height=2, model=self._source_prim_model)
+                        # ui.Button("S", width=20, height=20, style=select_button_style, clicked_fn=_get_prim)
+                        ui.Label(" Use instances ", width=65, tooltip="Select to use instances when copying a prim")
+                        instancer = ui.CheckBox(width=30)
+                        instancer.model.add_value_changed_fn(lambda m : setattr(self, '_use_instance_model', m.get_value_as_bool()))
+                        instancer.model.set_value(False)
+                        
+                        ui.Label(" Follow Orientation ", width=65)
+                        instancer = ui.CheckBox(width=30)
+                        instancer.model.add_value_changed_fn(lambda m : setattr(self, '_use_orient_model', m.get_value_as_bool()))
+                        instancer.model.set_value(False)
 
-                        path_to = f'/Copy'
-                        num_points = self._count
-                        # Default to 3x the number of points to distribute?
-                        num_samples = self._count*3
+                    with ui.HStack():
+                        ui.Label("Spline Type", 
+                                 name="label", 
+                                 width=160, 
+                                 tooltip="Type of curve to use for interpolating control points")
+                        ui.Spacer(width=13)
+                        widget = ui.ComboBox(0, *CURVES).model
+                        widget.add_item_changed_fn(lambda m, i: setattr(self, '_curve_type',
+                                                                        m.get_item_value_model().get_value_as_int()
+                                                                        )
+                                                   )
 
-                        # TODO: make this setting for the resolution to sample the curve defined by user
-                        interpolated_points = interpcurve(stage, curve_path, num_samples)
-                        indices = np.linspace(0, len(interpolated_points) - 1, num_points, dtype=int)
-                        target_points = interpolated_points[indices]
-                        copy_to_points(stage, target_points, ref_prims, path_to)
-
-                    def duplicate():
-
-                        stage = omni.usd.get_context().get_stage()
-                        curve_path = self._source_curve_model.as_string
-                        ref_prims = [self._source_prim_model.as_string]
-
-                        ## All of these should work (assuming the named prim is there)
-                        # ref_prims = ['/World/Cube']
-                        # ref_prims = ['/World/Cube', None]
-                        # ref_prims = ['/World/Cube', '/World/Cone']
-
-                        path_to = f'/Copy'
-
-                        num_points = self._count
-                        # Default to 3x the number of points to distribute? Actually might be handled already by interp
-                        num_samples = self._count
-
-                        # TODO: make this setting for the resolution to sample the curve defined by user
-                        interpolated_points = interpcurve(stage, curve_path, num_samples)
-                        indices = np.linspace(0, len(interpolated_points) - 1, num_points, dtype=int)
-                        target_points = interpolated_points[indices]
-                        copy_to_points(stage, target_points, ref_prims, path_to)
-
-                    ui.Label("Set Number of Points")
+                    with ui.HStack():
+                        ui.Label("Forward Axis", 
+                                 name="label", 
+                                 width=160, 
+                                 tooltip="Forward axis of target Object")
+                        ui.Spacer(width=13)
+                        widget = ui.ComboBox(0, *AXIS).model
+                        widget.add_item_changed_fn(lambda m, i: setattr(self, '_forward_axis',
+                                                                        utils.index_to_axis(m.get_item_value_model().get_value_as_int())
+                                                                        )
+                                                   )
                     with ui.VStack():
+
+                        
                         distribute_button_style = {"Button":{"background_color": cl.cyan,
                             "border_color": cl.white,
                             "border_width": 2.0,
@@ -170,9 +135,17 @@ class SiborgCreateCurvedistributeExtension(omni.ext.IExt):
                             "margin_width":5},
                             "Button.Label":{"color": cl.black},
                             "Button:hovered":{"background_color": cl("#E5F1FB")}}
-                        x = ui.IntField(height=5) 
-                        x.model.add_value_changed_fn(lambda m, self=self: setattr(self, '_count', m.get_value_as_int()))
-                        ui.Button("Distribute", clicked_fn=duplicate, style=distribute_button_style)
+                        
+                        ui.Button("Distribute", clicked_fn=lambda: GeomCreator.duplicate(self._count, 
+                                                                                         self._sampling_resolution, 
+                                                                                         self._source_curve_model, 
+                                                                                         self._source_prim_model, 
+                                                                                         self._use_instance_model,
+                                                                                         self._use_orient_model,
+                                                                                         self._forward_axis,
+                                                                                         self._curve_type), 
+                                        style=distribute_button_style) 
 
         def on_shutdown(self):
             print("[siborg.create.curvedistribute] siborg create curvedistribute shutdown")
+
