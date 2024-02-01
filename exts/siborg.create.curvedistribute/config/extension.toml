@@ -35,6 +35,7 @@ icon = "data/icon.png"
 # Use omni.ui to build simple UI
 [dependencies]
 "omni.kit.uiapp" = {}
+"omni.pip.compute" = {}
 
 # Main python module this extension provides, it will be publicly available as "import siborg.create.curvedistribute".
 [[python.module]]
